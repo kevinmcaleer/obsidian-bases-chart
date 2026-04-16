@@ -46,6 +46,8 @@ export function parseChartConfig(source: string): ChartConfig | null {
     if (Array.isArray(raw.colors)) config.colors = raw.colors as string[];
     if (typeof raw.width === 'number') config.width = raw.width;
     if (typeof raw.height === 'number') config.height = raw.height;
+    if (typeof raw.fontSize === 'number') config.fontSize = raw.fontSize;
+    if (typeof raw.fontColor === 'string') config.fontColor = raw.fontColor;
     if (raw.showGridlines !== undefined) config.showGridlines = Boolean(raw.showGridlines);
     if (raw.showLegend !== undefined) config.showLegend = Boolean(raw.showLegend);
     if (typeof raw.dataLabels === 'string') config.dataLabels = raw.dataLabels as ChartConfig['dataLabels'];
@@ -70,6 +72,8 @@ export function serializeChartConfig(config: ChartConfig): string {
   if (config.colors && config.colors.length > 0) obj.colors = config.colors;
   if (config.width) obj.width = config.width;
   if (config.height) obj.height = config.height;
+  if (config.fontSize) obj.fontSize = config.fontSize;
+  if (config.fontColor) obj.fontColor = config.fontColor;
   if (config.showGridlines !== undefined) obj.showGridlines = config.showGridlines;
   if (config.showLegend !== undefined) obj.showLegend = config.showLegend;
   if (config.dataLabels && config.dataLabels !== 'none') obj.dataLabels = config.dataLabels;

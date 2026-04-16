@@ -112,7 +112,7 @@ export function renderSettingsPanel(
   // --- Chart type (appearance — doesn't change SQL) ---
   const typeRow = createRow(form, 'Chart type');
   const typeGroup = typeRow.createDiv({ cls: 'bases-chart-type-group' });
-  const types: ChartType[] = ['bar', 'column', 'pie', 'doughnut', 'gauge', 'line', 'calendar'];
+  const types: ChartType[] = ['bar', 'column', 'pie', 'doughnut', 'gauge', 'line', 'calendar', 'stat'];
   for (const t of types) {
     const btn = typeGroup.createEl('button', {
       text: t,
@@ -224,6 +224,50 @@ export function renderSettingsPanel(
   dataLabelsSelect.addEventListener('change', () => {
     working.dataLabels = dataLabelsSelect.value as DataLabelPosition;
     if (working.dataLabels === 'none') delete working.dataLabels;
+    emitAppearance();
+  });
+
+  // --- Font size (stat chart) ---
+  const fontSizeRow = createRow(form, 'Font size (px)');
+  const fontSizeInput = fontSizeRow.createEl('input', {
+    type: 'number',
+    cls: 'bases-chart-input bases-chart-input-number',
+    value: config.fontSize != null ? String(config.fontSize) : '',
+    placeholder: '72',
+  });
+  fontSizeInput.min = '8';
+  fontSizeInput.step = '2';
+  fontSizeInput.addEventListener('change', () => {
+    const raw = fontSizeInput.value.trim();
+    if (raw === '') {
+      delete working.fontSize;
+    } else {
+      const n = Number(raw);
+      working.fontSize = Number.isFinite(n) && n > 0 ? Math.round(n) : undefined;
+      if (working.fontSize === undefined) delete working.fontSize;
+    }
+    emitAppearance();
+  });
+
+  // --- Font colour (stat chart) ---
+  const fontColorRow = createRow(form, 'Font colour');
+  const fontColorWrap = fontColorRow.createDiv({ cls: 'bases-chart-font-color-wrap' });
+  const fontColorInput = fontColorWrap.createEl('input', {
+    type: 'color',
+    cls: 'bases-chart-font-color-picker',
+  });
+  fontColorInput.value = config.fontColor || '#000000';
+  const fontColorClear = fontColorWrap.createEl('button', {
+    cls: 'bases-chart-color-reset',
+    text: 'Use theme',
+  });
+  fontColorInput.addEventListener('input', () => {
+    working.fontColor = fontColorInput.value;
+    emitAppearance();
+  });
+  fontColorClear.addEventListener('click', () => {
+    delete working.fontColor;
+    fontColorInput.value = '#000000';
     emitAppearance();
   });
 

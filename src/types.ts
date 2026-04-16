@@ -1,4 +1,4 @@
-export type ChartType = 'bar' | 'column' | 'pie' | 'doughnut' | 'gauge' | 'line' | 'calendar';
+export type ChartType = 'bar' | 'column' | 'pie' | 'doughnut' | 'gauge' | 'line' | 'calendar' | 'stat';
 export type DataLabelPosition = 'none' | 'base' | 'top' | 'outside';
 export type AggregateType = 'count' | 'sum' | 'average';
 export type SortDirection = 'asc' | 'desc';
@@ -24,6 +24,8 @@ export interface ChartConfig {
   colors?: string[];
   width?: number;
   height?: number;
+  fontSize?: number;      // Stat chart: font size in pixels (default 72)
+  fontColor?: string;     // Stat chart: text colour (hex, default theme text)
   showGridlines?: boolean;
   showLegend?: boolean;
   dataLabels?: DataLabelPosition;

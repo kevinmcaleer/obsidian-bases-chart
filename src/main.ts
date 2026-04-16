@@ -3,6 +3,7 @@ import { parseChartConfig } from './configSerializer';
 import { queryChartData, queryFilteredNotes } from './dataQuery';
 import { renderChart, destroyChart } from './chartRenderer';
 import { renderCalendar } from './calendarRenderer';
+import { renderStat } from './statRenderer';
 import { renderSettingsPanel } from './settingsPanel';
 import { Chart } from 'chart.js';
 
@@ -80,6 +81,18 @@ export default class BasesChartPlugin extends Plugin {
           return;
         }
         renderCalendar(chartContainer, notes, config);
+      } else if (config.type === 'stat') {
+        // Stat: single-number display. Honour height so it plays nicely
+        // inside dashboards, but don't require chart.js.
+        const heightPx = `${config.height || 200}px`;
+        chartContainer.addClass('bases-chart-container-sized');
+        chartContainer.setCssProps({ '--bases-chart-height': heightPx });
+        const data = await queryChartData(this.app, config);
+        if (data.labels.length === 0 && data.datasets.length === 0) {
+          chartContainer.createDiv({ cls: 'bases-chart-empty', text: 'No data found matching your query.' });
+          return;
+        }
+        renderStat(chartContainer, data, config);
       } else {
         // Set chart height via CSS custom property (consumed by styles.css)
         const heightPx = `${config.height || 400}px`;

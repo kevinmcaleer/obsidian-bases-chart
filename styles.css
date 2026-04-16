@@ -374,6 +374,53 @@
   border-left: 2px solid var(--text-error);
 }
 
+/* Stat chart — single large number, centred in the container */
+.bases-chart-stat {
+  width: 100%;
+  height: 100%;
+  min-height: 120px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+.bases-chart-stat-value {
+  font-size: var(--bases-chart-stat-font-size, 72px);
+  color: var(--bases-chart-stat-color, var(--text-normal));
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-interface);
+}
+
+.bases-chart-stat-caption {
+  margin-top: 6px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+}
+
+/* Font colour picker row */
+.bases-chart-font-color-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.bases-chart-font-color-picker {
+  width: 36px;
+  height: 28px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  padding: 2px;
+  background: var(--background-primary);
+  cursor: pointer;
+}
+
 /* Chart container */
 .bases-chart-container {
   position: relative;
