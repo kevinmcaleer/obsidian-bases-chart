@@ -1,5 +1,18 @@
-import { App, parseYaml, TFile } from 'obsidian';
+import { App, parseYaml } from 'obsidian';
 import { ParsedBaseFile, BaseViewConfig, FilterGroup } from './types';
+
+/**
+ * Safely convert an arbitrary value to a string for comparison purposes.
+ * Arrays are joined, null/undefined become empty string, and plain objects
+ * are treated as empty (avoiding '[object Object]' stringification).
+ */
+function stringifyValue(v: unknown): string {
+  if (v === null || v === undefined) return '';
+  if (typeof v === 'string') return v;
+  if (typeof v === 'number' || typeof v === 'boolean') return String(v);
+  if (Array.isArray(v)) return v.map(stringifyValue).join(', ');
+  return '';
+}
 
 /**
  * Parse a .base file and return its structure.
@@ -13,12 +26,12 @@ export async function parseBaseFile(app: App, filename: string): Promise<ParsedB
 
   const content = await app.vault.adapter.read(file.path);
   try {
-    const parsed = parseYaml(content);
+    const parsed = parseYaml(content) as Record<string, unknown> | null;
     if (!parsed || typeof parsed !== 'object') return null;
     return {
-      filters: parsed.filters || undefined,
-      formulas: parsed.formulas || undefined,
-      views: parsed.views || [],
+      filters: parsed.filters as ParsedBaseFile['filters'] | undefined,
+      formulas: parsed.formulas as ParsedBaseFile['formulas'] | undefined,
+      views: (parsed.views as ParsedBaseFile['views']) || [],
     };
   } catch {
     return null;
@@ -224,7 +237,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const val = neqMatch[2];
     return (note) => {
       const v = resolveProperty(note, prop);
-      return String(v ?? '').toLowerCase() !== val.toLowerCase();
+      return stringifyValue(v).toLowerCase() !== val.toLowerCase();
     };
   }
 
@@ -235,7 +248,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const val = eqMatch[2];
     return (note) => {
       const v = resolveProperty(note, prop);
-      return String(v ?? '').toLowerCase() === val.toLowerCase();
+      return stringifyValue(v).toLowerCase() === val.toLowerCase();
     };
   }
 
@@ -246,7 +259,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const num = parseFloat(gtMatch[2]);
     return (note) => {
       const v = resolveProperty(note, prop);
-      return (typeof v === 'number' ? v : parseFloat(String(v)) || 0) > num;
+      return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) > num;
     };
   }
 
@@ -257,7 +270,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const num = parseFloat(ltMatch[2]);
     return (note) => {
       const v = resolveProperty(note, prop);
-      return (typeof v === 'number' ? v : parseFloat(String(v)) || 0) < num;
+      return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) < num;
     };
   }
 

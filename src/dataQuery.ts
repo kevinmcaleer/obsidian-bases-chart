@@ -1,5 +1,5 @@
-import { App, TFile } from 'obsidian';
-import { ChartConfig, ChartDataResult, InlineQuery, FilterGroup, MetricItem } from './types';
+import { App, CachedMetadata } from 'obsidian';
+import { ChartConfig, ChartDataResult, InlineQuery, MetricItem, SortField, SortDirection, AggregateType } from './types';
 import { parseBaseFile, getViewFilters, buildFilterPredicate, buildConditionPredicate, NoteData } from './baseParser';
 import { sqlToConfig } from './sqlEngine';
 import { evaluateExpression } from './expressions';
@@ -177,7 +177,7 @@ async function loadNotes(app: App, source?: string, view?: string): Promise<Note
   return notes.filter(filterFn);
 }
 
-function extractTags(cache: ReturnType<App['metadataCache']['getFileCache']>, frontmatter: Record<string, unknown>): string[] {
+function extractTags(cache: CachedMetadata | null, frontmatter: Record<string, unknown>): string[] {
   const tags: string[] = [];
 
   if (cache?.tags) {
@@ -239,7 +239,7 @@ function aggregateMetric(notes: NoteData[], metric: MetricItem): number {
   if (metric.valueProperty) {
     const vals = notes.map(n => {
       const v = resolveNoteProperty(n, metric.valueProperty!);
-      return typeof v === 'number' ? v : parseFloat(String(v)) || 0;
+      return toNumber(v);
     });
 
     if (metric.aggregate === 'sum') {
@@ -272,13 +272,13 @@ function groupAndAggregate(notes: NoteData[], config: ChartConfig): Map<string, 
     } else if (aggregate === 'sum' && config.valueProperty) {
       const sum = groupNotes.reduce((acc, n) => {
         const v = resolveNoteProperty(n, config.valueProperty!);
-        return acc + (typeof v === 'number' ? v : parseFloat(String(v)) || 0);
+        return acc + toNumber(v);
       }, 0);
       result.set(key, sum);
     } else if (aggregate === 'average' && config.valueProperty) {
       const vals = groupNotes.map(n => {
         const v = resolveNoteProperty(n, config.valueProperty!);
-        return typeof v === 'number' ? v : parseFloat(String(v)) || 0;
+        return toNumber(v);
       });
       result.set(key, vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
     } else {
@@ -307,7 +307,7 @@ function aggregateData(notes: NoteData[], config: ChartConfig): ChartDataResult 
   return result;
 }
 
-function aggregateByGroup(notes: NoteData[], config: ChartConfig, aggregate: string): ChartDataResult {
+function aggregateByGroup(notes: NoteData[], config: ChartConfig, aggregate: AggregateType): ChartDataResult {
   const groups = new Map<string, NoteData[]>();
 
   for (const note of notes) {
@@ -326,13 +326,13 @@ function aggregateByGroup(notes: NoteData[], config: ChartConfig, aggregate: str
     } else if (aggregate === 'sum' && config.valueProperty) {
       const sum = groupNotes.reduce((acc, n) => {
         const v = resolveNoteProperty(n, config.valueProperty!);
-        return acc + (typeof v === 'number' ? v : parseFloat(String(v)) || 0);
+        return acc + toNumber(v);
       }, 0);
       data.push(sum);
     } else if (aggregate === 'average' && config.valueProperty) {
       const vals = groupNotes.map(n => {
         const v = resolveNoteProperty(n, config.valueProperty!);
-        return typeof v === 'number' ? v : parseFloat(String(v)) || 0;
+        return toNumber(v);
       });
       data.push(vals.length > 0 ? vals.reduce((a, b) => a + b, 0) / vals.length : 0);
     } else {
@@ -359,7 +359,7 @@ function aggregateFlat(notes: NoteData[], config: ChartConfig): ChartDataResult 
       data.push(evaluateExpression(config.valueExpression!, note));
     } else if (config.valueProperty) {
       const v = resolveNoteProperty(note, config.valueProperty);
-      data.push(typeof v === 'number' ? v : parseFloat(String(v)) || 0);
+      data.push(toNumber(v));
     } else {
       data.push(1);
     }
@@ -372,7 +372,7 @@ function aggregateFlat(notes: NoteData[], config: ChartConfig): ChartDataResult 
   };
 }
 
-function sortResult(result: ChartDataResult, field: string, direction: string): ChartDataResult {
+function sortResult(result: ChartDataResult, field: SortField, direction: SortDirection): ChartDataResult {
   const indices = result.labels.map((_, i) => i);
 
   indices.sort((a, b) => {
@@ -397,8 +397,16 @@ function sortResult(result: ChartDataResult, field: string, direction: string): 
 
 function formatValue(value: unknown): string {
   if (value === null || value === undefined) return '(empty)';
-  if (Array.isArray(value)) return value.join(', ');
-  return String(value);
+  if (Array.isArray(value)) return value.map(formatValue).join(', ');
+  if (typeof value === 'string') return value;
+  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  return '(unknown)';
+}
+
+function toNumber(v: unknown): number {
+  if (typeof v === 'number') return v;
+  if (typeof v === 'string') return parseFloat(v) || 0;
+  return 0;
 }
 
 /**

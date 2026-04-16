@@ -3,6 +3,38 @@
   padding: 8px 0;
 }
 
+/* Generic hidden utility (replaces inline display: none) */
+.bases-chart-settings .is-hidden,
+.bases-chart-sql-error.is-hidden,
+.bases-chart-settings-form.is-hidden {
+  display: none;
+}
+
+/* Chart container with dynamic height via CSS custom property */
+.bases-chart-container-sized {
+  height: var(--bases-chart-height, 400px);
+}
+
+/* Chart canvas — responsive */
+.bases-chart-canvas {
+  max-width: 100%;
+}
+
+/* Color chip background via CSS custom property */
+.bases-chart-color-chip {
+  background-color: var(--bases-chart-chip-color, transparent);
+}
+
+/* Calendar cells via CSS custom property */
+.bases-chart-calendar-cell {
+  background-color: var(--bases-chart-cell-color, var(--background-modifier-border));
+}
+
+/* Calendar month labels positioned via CSS custom property */
+.bases-chart-calendar-month-label {
+  left: var(--bases-chart-month-left, 0);
+}
+
 /* Header row: cog + title */
 .bases-chart-header {
   display: flex;
@@ -446,16 +478,15 @@
   gap: 2px;
 }
 
-/* Individual day cell */
+/* Individual day cell (background via --bases-chart-cell-color custom prop) */
 .bases-chart-calendar-cell {
   width: 13px;
   height: 13px;
   border-radius: 3px;
-  background: var(--background-modifier-border);
 }
 
 .bases-chart-calendar-cell-empty {
-  background: transparent;
+  background-color: transparent;
 }
 
 /* Legend (Less → More) */

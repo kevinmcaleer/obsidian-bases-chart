@@ -1,5 +1,5 @@
 import { parseYaml, stringifyYaml } from 'obsidian';
-import { ChartConfig } from './types';
+import { ChartConfig, SortField, SortDirection } from './types';
 
 /**
  * Parse YAML config from a code block.
@@ -8,48 +8,47 @@ import { ChartConfig } from './types';
  */
 export function parseChartConfig(source: string): ChartConfig | null {
   try {
-    const raw = parseYaml(source);
+    const raw = parseYaml(source) as Record<string, unknown> | null;
     if (!raw || typeof raw !== 'object') return null;
 
     const config: ChartConfig = {
-      type: raw.type || 'bar',
-      labelProperty: raw.labelProperty || 'file.name',
+      type: (raw.type as ChartConfig['type']) || 'bar',
+      labelProperty: (raw.labelProperty as string) || 'file.name',
     };
 
     // Data fields (legacy — kept for backwards compat, sql is now preferred)
-    if (raw.source) config.source = raw.source;
-    if (raw.view) config.view = raw.view;
-    if (raw.query) config.query = raw.query;
-    if (raw.valueProperty) config.valueProperty = raw.valueProperty;
-    if (raw.groupBy) config.groupBy = raw.groupBy;
-    if (raw.aggregate) config.aggregate = raw.aggregate;
-    if (raw.metrics) config.metrics = raw.metrics;
-    if (raw.sources) config.sources = raw.sources;
-    if (raw.unionSources) config.unionSources = raw.unionSources;
-    if (raw.valueExpression) config.valueExpression = raw.valueExpression;
-    if (raw.sort) {
+    if (typeof raw.source === 'string') config.source = raw.source;
+    if (typeof raw.view === 'string') config.view = raw.view;
+    if (raw.query && typeof raw.query === 'object') config.query = raw.query as ChartConfig['query'];
+    if (typeof raw.valueProperty === 'string') config.valueProperty = raw.valueProperty;
+    if (typeof raw.groupBy === 'string') config.groupBy = raw.groupBy;
+    if (typeof raw.aggregate === 'string') config.aggregate = raw.aggregate as ChartConfig['aggregate'];
+    if (Array.isArray(raw.metrics)) config.metrics = raw.metrics as ChartConfig['metrics'];
+    if (Array.isArray(raw.sources)) config.sources = raw.sources as string[];
+    if (Array.isArray(raw.unionSources)) config.unionSources = raw.unionSources as string[];
+    if (typeof raw.valueExpression === 'string') config.valueExpression = raw.valueExpression;
+    if (raw.sort !== undefined) {
       if (typeof raw.sort === 'string') {
         const parts = raw.sort.trim().split(/\s+/);
-        config.sort = {
-          field: (parts[0] === 'label' ? 'label' : 'value') as any,
-          direction: (parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc') as any,
-        };
-      } else if (typeof raw.sort === 'object') {
-        config.sort = raw.sort;
+        const field: SortField = parts[0] === 'label' ? 'label' : 'value';
+        const direction: SortDirection = parts[1]?.toLowerCase() === 'desc' ? 'desc' : 'asc';
+        config.sort = { field, direction };
+      } else if (typeof raw.sort === 'object' && raw.sort !== null) {
+        config.sort = raw.sort as ChartConfig['sort'];
       }
     }
 
     // SQL (source of truth for data)
-    if (raw.sql) config.sql = raw.sql;
+    if (typeof raw.sql === 'string') config.sql = raw.sql;
 
     // Appearance
-    if (raw.title) config.title = raw.title;
-    if (raw.colors) config.colors = raw.colors;
-    if (raw.width) config.width = raw.width;
-    if (raw.height) config.height = raw.height;
-    if (raw.showGridlines !== undefined) config.showGridlines = raw.showGridlines;
-    if (raw.showLegend !== undefined) config.showLegend = raw.showLegend;
-    if (raw.dataLabels) config.dataLabels = raw.dataLabels;
+    if (typeof raw.title === 'string') config.title = raw.title;
+    if (Array.isArray(raw.colors)) config.colors = raw.colors as string[];
+    if (typeof raw.width === 'number') config.width = raw.width;
+    if (typeof raw.height === 'number') config.height = raw.height;
+    if (raw.showGridlines !== undefined) config.showGridlines = Boolean(raw.showGridlines);
+    if (raw.showLegend !== undefined) config.showLegend = Boolean(raw.showLegend);
+    if (typeof raw.dataLabels === 'string') config.dataLabels = raw.dataLabels as ChartConfig['dataLabels'];
 
     return config;
   } catch {

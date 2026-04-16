@@ -9,14 +9,14 @@ import { Chart } from 'chart.js';
 export default class BasesChartPlugin extends Plugin {
   private charts: Map<HTMLElement, Chart> = new Map();
 
-  async onload() {
-    this.registerMarkdownCodeBlockProcessor('bases-chart', async (source, el, ctx) => {
-      await this.processChartBlock(source, el, ctx);
+  onload(): void {
+    this.registerMarkdownCodeBlockProcessor('bases-chart', (source, el, ctx) => {
+      void this.processChartBlock(source, el, ctx);
     });
 
     this.addCommand({
-      id: 'insert-bases-chart',
-      name: 'Insert bases chart',
+      id: 'insert-chart',
+      name: 'Insert chart',
       editorCallback: (editor) => {
         const template = [
           '```bases-chart',
@@ -28,7 +28,7 @@ export default class BasesChartPlugin extends Plugin {
     });
   }
 
-  onunload() {
+  onunload(): void {
     for (const [, chart] of this.charts) {
       destroyChart(chart);
     }
@@ -39,8 +39,7 @@ export default class BasesChartPlugin extends Plugin {
     source: string,
     el: HTMLElement,
     ctx: MarkdownPostProcessorContext
-  ) {
-    // Parse config — treat empty/whitespace-only blocks as a blank starter config
+  ): Promise<void> {
     const trimmed = source.trim();
     const config = trimmed ? parseChartConfig(source) : {
       type: 'bar' as const,
@@ -55,10 +54,9 @@ export default class BasesChartPlugin extends Plugin {
     const wrapper = el.createDiv({ cls: 'bases-chart-wrapper' });
     const needsSetup = !config.sql && !config.source && !config.query;
 
-    // Header: cog on the left, title below
     const header = wrapper.createDiv({ cls: 'bases-chart-header' });
     renderSettingsPanel(header, config, this.app, (newYaml) => {
-      this.updateCodeBlock(ctx, el, newYaml);
+      void this.updateCodeBlock(ctx, el, newYaml);
     }, needsSetup);
     if (config.title) {
       wrapper.createDiv({ cls: 'bases-chart-title', text: config.title });
@@ -72,12 +70,10 @@ export default class BasesChartPlugin extends Plugin {
       return;
     }
 
-    // Chart container
     const chartContainer = wrapper.createDiv({ cls: 'bases-chart-container' });
 
     try {
       if (config.type === 'calendar') {
-        // Calendar heatmap — custom renderer, no Chart.js
         const notes = await queryFilteredNotes(this.app, config);
         if (notes.length === 0) {
           chartContainer.createDiv({ cls: 'bases-chart-empty', text: 'No data found matching your query.' });
@@ -85,8 +81,10 @@ export default class BasesChartPlugin extends Plugin {
         }
         renderCalendar(chartContainer, notes, config);
       } else {
-        // Chart.js charts
-        chartContainer.style.height = `${config.height || 400}px`;
+        // Set chart height via CSS custom property (consumed by styles.css)
+        const heightPx = `${config.height || 400}px`;
+        chartContainer.addClass('bases-chart-container-sized');
+        chartContainer.setCssProps({ '--bases-chart-height': heightPx });
 
         const data = await queryChartData(this.app, config);
         if (data.labels.length === 0) {
@@ -119,7 +117,7 @@ export default class BasesChartPlugin extends Plugin {
     }
   }
 
-  private async updateCodeBlock(ctx: MarkdownPostProcessorContext, el: HTMLElement, newYaml: string) {
+  private async updateCodeBlock(ctx: MarkdownPostProcessorContext, el: HTMLElement, newYaml: string): Promise<void> {
     const abstractFile = this.app.vault.getAbstractFileByPath(ctx.sourcePath);
     if (!(abstractFile instanceof TFile)) return;
 
@@ -132,7 +130,6 @@ export default class BasesChartPlugin extends Plugin {
         return [...before, newYaml, ...after].join('\n');
       });
     } else {
-      // Fallback: regex replace
       await this.app.vault.process(abstractFile, (content) => {
         const regex = /(```bases-chart\n)([\s\S]*?)(```)/;
         return content.replace(regex, `$1${newYaml}\n$3`);

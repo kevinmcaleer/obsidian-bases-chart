@@ -1,5 +1,5 @@
 import { App, setIcon } from 'obsidian';
-import { ChartConfig, ChartType, AggregateType, DataLabelPosition, DEFAULT_COLORS } from './types';
+import { ChartConfig, ChartType, AggregateType, DataLabelPosition, SortField, SortDirection, DEFAULT_COLORS } from './types';
 import { listBaseFiles, discoverProperties } from './dataQuery';
 import { parseBaseFile, getViewNames } from './baseParser';
 import { serializeChartConfig } from './configSerializer';
@@ -21,12 +21,12 @@ export function renderSettingsPanel(
   toggleBtn.setAttribute('aria-label', 'Chart settings');
 
   const form = panel.createDiv({ cls: 'bases-chart-settings-form' });
-  form.style.display = startOpen ? 'block' : 'none';
+  if (!startOpen) form.addClass('is-hidden');
   if (startOpen) toggleBtn.classList.add('is-active');
 
   toggleBtn.addEventListener('click', () => {
-    const isHidden = form.style.display === 'none';
-    form.style.display = isHidden ? 'block' : 'none';
+    const isHidden = form.hasClass('is-hidden');
+    form.toggleClass('is-hidden', !isHidden);
     toggleBtn.classList.toggle('is-active', isHidden);
   });
 
@@ -49,7 +49,7 @@ export function renderSettingsPanel(
     working.sql = configToSql(working);
     sqlTextarea.value = working.sql;
     sqlError.textContent = '';
-    sqlError.style.display = 'none';
+    sqlError.addClass('is-hidden');
     onConfigChanged(serializeChartConfig(working));
   };
 
@@ -65,25 +65,27 @@ export function renderSettingsPanel(
   const sourceRow = createRow(form, 'Source');
   const baseFiles = listBaseFiles(app);
   const sourceSelect = createSelect(sourceRow, ['(none)', ...baseFiles], config.source || '(none)');
-  sourceSelect.addEventListener('change', async () => {
+  sourceSelect.addEventListener('change', () => {
     const val = sourceSelect.value;
     if (val === '(none)') {
       delete working.source;
       delete working.view;
-      viewSelect.innerHTML = '';
+      viewSelect.empty();
       viewSelect.createEl('option', { text: '(none)', value: '(none)' });
+      emitWithSql();
     } else {
       working.source = val;
-      const base = await parseBaseFile(app, val);
-      viewSelect.innerHTML = '';
-      viewSelect.createEl('option', { text: '(first view)', value: '' });
-      if (base) {
-        for (const name of getViewNames(base)) {
-          viewSelect.createEl('option', { text: name, value: name });
+      void parseBaseFile(app, val).then((base) => {
+        viewSelect.empty();
+        viewSelect.createEl('option', { text: '(first view)', value: '' });
+        if (base) {
+          for (const name of getViewNames(base)) {
+            viewSelect.createEl('option', { text: name, value: name });
+          }
         }
-      }
+        emitWithSql();
+      });
     }
-    emitWithSql();
   });
 
   const viewRow = createRow(form, 'View');
@@ -95,9 +97,9 @@ export function renderSettingsPanel(
   });
 
   if (config.source) {
-    parseBaseFile(app, config.source).then(base => {
+    void parseBaseFile(app, config.source).then((base) => {
       if (base) {
-        viewSelect.innerHTML = '';
+        viewSelect.empty();
         viewSelect.createEl('option', { text: '(first view)', value: '' });
         for (const name of getViewNames(base)) {
           const opt = viewSelect.createEl('option', { text: name, value: name });
@@ -168,7 +170,10 @@ export function renderSettingsPanel(
       delete working.sort;
     } else {
       const parts = val.split(' ');
-      working.sort = { field: parts[0] as any, direction: parts[1] as any };
+      working.sort = {
+        field: parts[0] as SortField,
+        direction: parts[1] as SortDirection,
+      };
     }
     emitWithSql();
   });
@@ -228,7 +233,7 @@ export function renderSettingsPanel(
 
     currentColors.forEach((color, idx) => {
       const chip = chips.createDiv({ cls: 'bases-chart-color-chip' });
-      chip.style.backgroundColor = color;
+      chip.setCssProps({ '--bases-chart-chip-color': color });
       chip.setAttribute('aria-label', color);
       chip.draggable = true;
       chip.dataset.idx = String(idx);
@@ -271,7 +276,7 @@ export function renderSettingsPanel(
       picker.value = color;
       picker.addEventListener('input', () => {
         currentColors[idx] = picker.value;
-        chip.style.backgroundColor = picker.value;
+        chip.setCssProps({ '--bases-chart-chip-color': picker.value });
         working.colors = [...currentColors];
         emitAppearance();
       });
@@ -317,7 +322,7 @@ export function renderSettingsPanel(
   // SQL query section
   // ═══════════════════════════════════════
   const sqlHeader = form.createDiv({ cls: 'bases-chart-section-header' });
-  sqlHeader.createEl('span', { text: 'SQL Query' });
+  sqlHeader.createEl('span', { text: 'SQL query' });
 
   const sqlContainer = form.createDiv({ cls: 'bases-chart-sql-container' });
   const sqlTextarea = sqlContainer.createEl('textarea', {
@@ -327,8 +332,7 @@ export function renderSettingsPanel(
   sqlTextarea.rows = 3;
   sqlTextarea.spellcheck = false;
 
-  const sqlError = sqlContainer.createDiv({ cls: 'bases-chart-sql-error' });
-  sqlError.style.display = 'none';
+  const sqlError = sqlContainer.createDiv({ cls: 'bases-chart-sql-error is-hidden' });
 
   // Initialize SQL textarea
   sqlTextarea.value = config.sql || (config.source || config.query ? configToSql(config) : '');
@@ -343,7 +347,7 @@ export function renderSettingsPanel(
         const sql = sqlTextarea.value.trim();
         if (!sql) {
           sqlError.textContent = '';
-          sqlError.style.display = 'none';
+          sqlError.addClass('is-hidden');
           delete working.sql;
           delete working.source;
           delete working.view;
@@ -368,7 +372,7 @@ export function renderSettingsPanel(
 
         const parsed = sqlToConfig(sql);
         sqlError.textContent = '';
-        sqlError.style.display = 'none';
+        sqlError.addClass('is-hidden');
 
         // Update working config from parsed SQL
         working.source = parsed.source;
@@ -396,7 +400,7 @@ export function renderSettingsPanel(
         onConfigChanged(serializeChartConfig(working));
       } catch (err) {
         sqlError.textContent = err instanceof Error ? err.message : String(err);
-        sqlError.style.display = 'block';
+        sqlError.removeClass('is-hidden');
       } finally {
         syncing = false;
       }

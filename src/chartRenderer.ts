@@ -1,4 +1,5 @@
-import { Chart, ChartConfiguration, registerables } from 'chart.js';
+import { Chart, ChartConfiguration, ChartType as ChartJsType, registerables } from 'chart.js';
+import type { Context as DataLabelsContext } from 'chartjs-plugin-datalabels';
 import ChartDataLabels from 'chartjs-plugin-datalabels';
 import { ChartConfig, ChartDataResult, DEFAULT_COLORS, DataLabelPosition } from './types';
 
@@ -14,7 +15,7 @@ export function renderChart(
   const height = config.height || 400;
   canvas.width = width;
   canvas.height = height;
-  canvas.style.maxWidth = '100%';
+  canvas.addClass('bases-chart-canvas');
 
   const colors = config.colors && config.colors.length > 0
     ? config.colors
@@ -65,7 +66,6 @@ function buildChartConfig(
       };
     }
 
-    // Bar or column
     if (isMultiDataset) {
       return {
         label: ds.label,
@@ -88,9 +88,9 @@ function buildChartConfig(
   });
 
   const gridColor = showGridlines ? 'var(--background-modifier-border)' : 'transparent';
-  const datalabelsConfig = buildDataLabelsConfig(dataLabels, isPieOrDoughnut, colors);
+  const datalabelsConfig = buildDataLabelsConfig(dataLabels, isPieOrDoughnut);
 
-  const chartjsType = (isColumn ? 'bar' : (type === 'doughnut' ? 'doughnut' : type)) as any;
+  const chartjsType: ChartJsType = isColumn ? 'bar' : (type as ChartJsType);
 
   return {
     type: chartjsType,
@@ -101,7 +101,7 @@ function buildChartConfig(
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      indexAxis: isColumn ? 'y' as const : undefined,
+      indexAxis: isColumn ? 'y' : undefined,
       layout: isPieOrDoughnut && dataLabels === 'outside' ? {
         padding: { top: 30, bottom: 30, left: 30, right: 30 },
       } : undefined,
@@ -140,14 +140,12 @@ function buildGauge(
 ): Chart {
   const dataLabels = config.dataLabels || 'none';
 
-  // Build the visible data + a transparent filler for the bottom half
   const visibleData = data.datasets[0]?.data || [];
   const total = visibleData.reduce((a, b) => a + b, 0);
 
   const bgColors = visibleData.map((_, j) => colors[j % colors.length]);
   const borderColors = [...bgColors];
 
-  // Add the invisible bottom half (equal to the visible total)
   const gaugeData = [...visibleData, total];
   bgColors.push('transparent');
   borderColors.push('transparent');
@@ -168,8 +166,8 @@ function buildGauge(
     options: {
       responsive: true,
       maintainAspectRatio: false,
-      rotation: -90,     // start at top-left (9 o'clock)
-      circumference: 180, // only draw top half
+      rotation: -90,
+      circumference: 180,
       cutout: '60%',
       layout: {
         padding: { bottom: 0 },
@@ -180,22 +178,20 @@ function buildGauge(
           display: showLegend,
           labels: {
             color: 'var(--text-muted)',
-            filter: (item: any) => {
-              // Hide the invisible filler slice from the legend
-              return item.index < visibleData.length;
+            filter: (item: { index?: number }) => {
+              return (item.index ?? 0) < visibleData.length;
             },
           },
         },
         tooltip: {
-          filter: (item: any) => {
-            // Hide tooltip for the filler slice
+          filter: (item: { dataIndex: number }) => {
             return item.dataIndex < visibleData.length;
           },
         },
         datalabels: buildGaugeDataLabels(dataLabels, visibleData.length),
       },
     },
-  } as any);
+  });
 }
 
 function buildGaugeDataLabels(position: DataLabelPosition, visibleCount: number): Record<string, unknown> {
@@ -204,29 +200,31 @@ function buildGaugeDataLabels(position: DataLabelPosition, visibleCount: number)
   }
 
   return {
-    display: (ctx: any) => ctx.dataIndex < visibleCount, // hide filler label
+    display: (ctx: DataLabelsContext) => ctx.dataIndex < visibleCount,
     color: position === 'outside' ? 'var(--text-normal)' : '#fff',
-    font: { size: 12, weight: 'bold' as const },
-    anchor: position === 'outside' ? 'end' as const : 'center' as const,
-    align: position === 'outside' ? 'end' as const : 'center' as const,
+    font: { size: 12, weight: 'bold' },
+    anchor: position === 'outside' ? 'end' : 'center',
+    align: position === 'outside' ? 'end' : 'center',
     offset: position === 'outside' ? 8 : 0,
-    formatter: (value: number, ctx: any) => {
+    formatter: (value: number, ctx: DataLabelsContext) => {
       if (ctx.dataIndex >= visibleCount) return '';
-      const visibleTotal = ctx.dataset.data.slice(0, visibleCount).reduce((a: number, b: number) => a + b, 0);
+      const dataArr = (ctx.dataset.data as number[]).slice(0, visibleCount);
+      const visibleTotal = dataArr.reduce((a, b) => a + b, 0);
       const pct = visibleTotal > 0 ? Math.round((value / visibleTotal) * 100) : 0;
       if (position === 'outside') {
-        const label = ctx.chart.data.labels?.[ctx.dataIndex] || '';
-        return `${label}\n${pct}%`;
+        const label = ctx.chart.data.labels?.[ctx.dataIndex];
+        const labelText = typeof label === 'string' ? label : '';
+        return `${labelText}\n${pct}%`;
       }
       return pct >= 5 ? `${pct}%` : '';
     },
-    textAlign: 'center' as const,
+    textAlign: 'center',
   };
 }
 
 // ─── Data labels config ───
 
-function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, colors: string[]): Record<string, unknown> {
+function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean): Record<string, unknown> {
   if (position === 'none') {
     return { display: false };
   }
@@ -236,23 +234,24 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, colo
       return {
         display: true,
         color: 'var(--text-normal)',
-        font: { size: 12, weight: 'bold' as const },
-        anchor: 'end' as const, align: 'end' as const, offset: 10,
-        formatter: (value: number, ctx: any) => {
-          const label = ctx.chart.data.labels?.[ctx.dataIndex] || '';
-          const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
+        font: { size: 12, weight: 'bold' },
+        anchor: 'end', align: 'end', offset: 10,
+        formatter: (value: number, ctx: DataLabelsContext) => {
+          const label = ctx.chart.data.labels?.[ctx.dataIndex];
+          const labelText = typeof label === 'string' ? label : '';
+          const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0);
           const pct = total > 0 ? Math.round((value / total) * 100) : 0;
-          return `${label}\n${pct}%`;
+          return `${labelText}\n${pct}%`;
         },
-        textAlign: 'center' as const,
+        textAlign: 'center',
       };
     }
     return {
       display: true, color: '#fff',
-      font: { size: 12, weight: 'bold' as const },
-      anchor: 'center' as const, align: 'center' as const,
-      formatter: (value: number, ctx: any) => {
-        const total = ctx.dataset.data.reduce((a: number, b: number) => a + b, 0);
+      font: { size: 12, weight: 'bold' },
+      anchor: 'center', align: 'center',
+      formatter: (value: number, ctx: DataLabelsContext) => {
+        const total = (ctx.dataset.data as number[]).reduce((a, b) => a + b, 0);
         const pct = total > 0 ? Math.round((value / total) * 100) : 0;
         return pct >= 5 ? `${pct}%` : '';
       },
@@ -263,22 +262,22 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, colo
     case 'base':
       return {
         display: true, color: '#fff',
-        font: { size: 11, weight: 'bold' as const },
-        anchor: 'start' as const, align: 'start' as const, offset: 4,
+        font: { size: 11, weight: 'bold' },
+        anchor: 'start', align: 'start', offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',
       };
     case 'top':
       return {
         display: true, color: '#fff',
-        font: { size: 11, weight: 'bold' as const },
-        anchor: 'end' as const, align: 'start' as const, offset: 4,
+        font: { size: 11, weight: 'bold' },
+        anchor: 'end', align: 'start', offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',
       };
     case 'outside':
       return {
         display: true, color: 'var(--text-muted)',
-        font: { size: 11, weight: 'bold' as const },
-        anchor: 'end' as const, align: 'end' as const, offset: 4,
+        font: { size: 11, weight: 'bold' },
+        anchor: 'end', align: 'end', offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',
       };
     default:
