@@ -41,14 +41,18 @@ export function getViewFilters(base: ParsedBaseFile, viewName?: string): FilterG
   const topFilters = base.filters;
   const viewFilters = view?.filters;
 
-  // Merge: combine all "and" conditions from top-level and view-level
-  const andConditions: string[] = [];
-  if (topFilters?.and) andConditions.push(...topFilters.and);
-  if (topFilters?.or) andConditions.push(...topFilters.or); // treat top-level or as additional conditions
-  if (viewFilters?.and) andConditions.push(...viewFilters.and);
+  const safeArray = (arr: unknown): string[] =>
+    Array.isArray(arr) ? arr.filter((v): v is string => typeof v === 'string') : [];
 
-  const orConditions: string[] = [];
-  if (viewFilters?.or) orConditions.push(...viewFilters.or);
+  // Merge top-level and view-level filters, keeping and/or semantics separate
+  const andConditions = [
+    ...safeArray(topFilters?.and),
+    ...safeArray(viewFilters?.and),
+  ];
+  const orConditions = [
+    ...safeArray(topFilters?.or),
+    ...safeArray(viewFilters?.or),
+  ];
 
   const result: FilterGroup = {};
   if (andConditions.length > 0) result.and = andConditions;
@@ -96,8 +100,11 @@ export type NoteData = {
 };
 
 export function buildFilterPredicate(filters: FilterGroup): (note: NoteData) => boolean {
-  const andPredicates = (filters.and || []).map(parseExpression);
-  const orPredicates = (filters.or || []).map(parseExpression);
+  const toStrings = (arr: unknown[]): string[] =>
+    arr.filter((v): v is string => typeof v === 'string');
+
+  const andPredicates = toStrings(filters.and || []).map(parseExpression);
+  const orPredicates = toStrings(filters.or || []).map(parseExpression);
 
   return (note: NoteData) => {
     const andPass = andPredicates.length === 0 || andPredicates.every(fn => fn(note));
@@ -170,6 +177,92 @@ function resolveProperty(note: NoteData, path: string): unknown {
 
   // Look up in frontmatter
   return note.frontmatter[key] ?? note.frontmatter[key.toLowerCase()] ?? null;
+}
+
+/**
+ * Build a predicate from a SQL-style WHERE condition string.
+ * Supports: IS EMPTY, IS NOT EMPTY, = 'val', != 'val', CONTAINS 'val', > N, < N
+ */
+export function buildConditionPredicate(condition: string): (note: NoteData) => boolean {
+  const trimmed = condition.trim();
+  if (!trimmed) return () => true;
+
+  // prop IS NOT EMPTY
+  const isNotEmptyMatch = trimmed.match(/^(.+?)\s+IS\s+NOT\s+EMPTY$/i);
+  if (isNotEmptyMatch) {
+    const prop = isNotEmptyMatch[1].trim();
+    return (note) => {
+      const val = resolveProperty(note, prop);
+      return val !== null && val !== undefined && val !== '' &&
+        !(Array.isArray(val) && val.length === 0);
+    };
+  }
+
+  // prop IS EMPTY
+  const isEmptyMatch = trimmed.match(/^(.+?)\s+IS\s+EMPTY$/i);
+  if (isEmptyMatch) {
+    const prop = isEmptyMatch[1].trim();
+    return (note) => {
+      const val = resolveProperty(note, prop);
+      return val === null || val === undefined || val === '' ||
+        (Array.isArray(val) && val.length === 0);
+    };
+  }
+
+  // prop CONTAINS 'val'
+  const containsMatch = trimmed.match(/^(.+?)\s+CONTAINS\s+'([^']*)'/i);
+  if (containsMatch) {
+    const prop = containsMatch[1].trim();
+    const search = containsMatch[2];
+    return (note) => valueContains(resolveProperty(note, prop), search);
+  }
+
+  // prop != 'val'
+  const neqMatch = trimmed.match(/^(.+?)\s*!=\s*'([^']*)'/);
+  if (neqMatch) {
+    const prop = neqMatch[1].trim();
+    const val = neqMatch[2];
+    return (note) => {
+      const v = resolveProperty(note, prop);
+      return String(v ?? '').toLowerCase() !== val.toLowerCase();
+    };
+  }
+
+  // prop = 'val'
+  const eqMatch = trimmed.match(/^(.+?)\s*=\s*'([^']*)'/);
+  if (eqMatch) {
+    const prop = eqMatch[1].trim();
+    const val = eqMatch[2];
+    return (note) => {
+      const v = resolveProperty(note, prop);
+      return String(v ?? '').toLowerCase() === val.toLowerCase();
+    };
+  }
+
+  // prop > N
+  const gtMatch = trimmed.match(/^(.+?)\s*>\s*([0-9.]+)/);
+  if (gtMatch) {
+    const prop = gtMatch[1].trim();
+    const num = parseFloat(gtMatch[2]);
+    return (note) => {
+      const v = resolveProperty(note, prop);
+      return (typeof v === 'number' ? v : parseFloat(String(v)) || 0) > num;
+    };
+  }
+
+  // prop < N
+  const ltMatch = trimmed.match(/^(.+?)\s*<\s*([0-9.]+)/);
+  if (ltMatch) {
+    const prop = ltMatch[1].trim();
+    const num = parseFloat(ltMatch[2]);
+    return (note) => {
+      const v = resolveProperty(note, prop);
+      return (typeof v === 'number' ? v : parseFloat(String(v)) || 0) < num;
+    };
+  }
+
+  // Fallback: always pass
+  return () => true;
 }
 
 function valueContains(value: unknown, search: string): boolean {

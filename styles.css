@@ -3,17 +3,30 @@
   padding: 8px 0;
 }
 
-/* Settings toggle — top-left to avoid Obsidian's <> code edit button in top-right */
+/* Header row: cog + title */
+.bases-chart-header {
+  display: flex;
+  align-items: flex-start;
+  gap: 0;
+  min-height: 28px;
+}
+
+.bases-chart-title {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--text-normal);
+  padding: 2px 0;
+  line-height: 24px;
+}
+
+/* Settings toggle — inline in header, not absolute */
 .bases-chart-settings-toggle {
-  position: absolute;
-  top: 8px;
-  left: 8px;
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
   opacity: 0.4;
   transition: opacity 0.2s, background-color 0.2s;
-  z-index: 10;
+  flex-shrink: 0;
 }
 
 .bases-chart-settings-toggle:hover,
@@ -22,14 +35,19 @@
   background-color: var(--background-modifier-hover);
 }
 
-/* Settings form */
+/* Settings form — full width below the header */
+.bases-chart-settings {
+  flex: 1;
+  min-width: 0;
+}
+
 .bases-chart-settings-form {
   background: var(--background-secondary);
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   padding: 12px 16px;
   margin-bottom: 12px;
-  margin-top: 32px;
+  margin-top: 8px;
 }
 
 .bases-chart-row {
@@ -172,7 +190,7 @@
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  cursor: pointer;
+  cursor: grab;
   position: relative;
   border: 2px solid var(--background-modifier-border);
   transition: border-color 0.15s, transform 0.15s;
@@ -181,6 +199,19 @@
 .bases-chart-color-chip:hover {
   border-color: var(--text-muted);
   transform: scale(1.1);
+}
+
+.bases-chart-color-chip.is-dragging {
+  opacity: 0.4;
+  cursor: grabbing;
+}
+
+.bases-chart-color-chip.drag-over-left {
+  box-shadow: -3px 0 0 0 var(--interactive-accent);
+}
+
+.bases-chart-color-chip.drag-over-right {
+  box-shadow: 3px 0 0 0 var(--interactive-accent);
 }
 
 .bases-chart-color-picker-input {
@@ -249,6 +280,45 @@
   color: var(--text-normal);
 }
 
+/* SQL textarea */
+.bases-chart-sql-container {
+  margin-top: 4px;
+}
+
+.bases-chart-sql-textarea {
+  width: 100%;
+  min-height: 60px;
+  padding: 8px 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-small);
+  resize: vertical;
+  line-height: 1.5;
+  box-sizing: border-box;
+}
+
+.bases-chart-sql-textarea:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+.bases-chart-sql-textarea::placeholder {
+  color: var(--text-faint);
+}
+
+.bases-chart-sql-error {
+  margin-top: 4px;
+  padding: 4px 8px;
+  font-size: var(--font-ui-smaller);
+  color: var(--text-error);
+  background: var(--background-secondary);
+  border-radius: 4px;
+  border-left: 2px solid var(--text-error);
+}
+
 /* Chart container */
 .bases-chart-container {
   position: relative;
@@ -274,4 +344,114 @@
   text-align: center;
   color: var(--text-faint);
   font-size: var(--font-ui-small);
+}
+
+/* ═══════════════════════════════════════
+   GitHub-style calendar heatmap
+   ═══════════════════════════════════════ */
+
+.bases-chart-calendar {
+  overflow-x: auto;
+  padding: 8px 0;
+}
+
+.bases-chart-calendar-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+  margin-bottom: 8px;
+}
+
+.bases-chart-calendar-body {
+  display: flex;
+  gap: 4px;
+}
+
+/* Day-of-week labels (Mon, Wed, Fri) */
+.bases-chart-calendar-day-labels {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-top: 18px; /* align with week cells below month labels */
+  flex-shrink: 0;
+}
+
+.bases-chart-calendar-day-label {
+  width: 28px;
+  height: 13px;
+  font-size: 10px;
+  line-height: 13px;
+  color: var(--text-faint);
+  text-align: right;
+  padding-right: 4px;
+}
+
+/* Grid area: month labels above, week columns below */
+.bases-chart-calendar-grid-area {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  min-width: 0;
+}
+
+/* Month/year labels row */
+.bases-chart-calendar-months {
+  position: relative;
+  height: 16px;
+  margin-bottom: 2px;
+}
+
+.bases-chart-calendar-month-label {
+  position: absolute;
+  top: 0;
+  font-size: 10px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  line-height: 14px;
+}
+
+/* Week columns container */
+.bases-chart-calendar-weeks {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 2px;
+}
+
+.bases-chart-calendar-week {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+/* Individual day cell */
+.bases-chart-calendar-cell {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
+  background: var(--background-modifier-border);
+}
+
+.bases-chart-calendar-cell-empty {
+  background: transparent;
+}
+
+/* Legend (Less → More) */
+.bases-chart-calendar-legend {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.bases-chart-calendar-legend-text {
+  font-size: 10px;
+  color: var(--text-faint);
+  padding: 0 4px;
+}
+
+.bases-chart-calendar-legend-swatch {
+  width: 13px;
+  height: 13px;
+  border-radius: 3px;
 }

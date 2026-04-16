@@ -1,7 +1,8 @@
 import { Plugin, MarkdownPostProcessorContext, TFile } from 'obsidian';
 import { parseChartConfig } from './configSerializer';
-import { queryChartData } from './dataQuery';
+import { queryChartData, queryFilteredNotes } from './dataQuery';
 import { renderChart, destroyChart } from './chartRenderer';
+import { renderCalendar } from './calendarRenderer';
 import { renderSettingsPanel } from './settingsPanel';
 import { Chart } from 'chart.js';
 
@@ -20,8 +21,6 @@ export default class BasesChartPlugin extends Plugin {
         const template = [
           '```bases-chart',
           'type: bar',
-          'labelProperty: file.name',
-          'groupBy: status',
           '```',
         ].join('\n');
         editor.replaceSelection(template + '\n');
@@ -54,12 +53,16 @@ export default class BasesChartPlugin extends Plugin {
     }
 
     const wrapper = el.createDiv({ cls: 'bases-chart-wrapper' });
-    const needsSetup = !config.source && !config.query;
+    const needsSetup = !config.sql && !config.source && !config.query;
 
-    // Always render the settings panel — open it by default when the chart has no data source yet
-    renderSettingsPanel(wrapper, config, this.app, (newYaml) => {
+    // Header row: cog + title side by side
+    const header = wrapper.createDiv({ cls: 'bases-chart-header' });
+    renderSettingsPanel(header, config, this.app, (newYaml) => {
       this.updateCodeBlock(ctx, el, newYaml);
     }, needsSetup);
+    if (config.title) {
+      header.createDiv({ cls: 'bases-chart-title', text: config.title });
+    }
 
     if (needsSetup) {
       wrapper.createDiv({
@@ -71,33 +74,43 @@ export default class BasesChartPlugin extends Plugin {
 
     // Chart container
     const chartContainer = wrapper.createDiv({ cls: 'bases-chart-container' });
-    chartContainer.style.height = `${config.height || 400}px`;
 
     try {
-      const data = await queryChartData(this.app, config);
-
-      if (data.labels.length === 0) {
-        chartContainer.createDiv({ cls: 'bases-chart-empty', text: 'No data found matching your query.' });
-        return;
-      }
-
-      const existing = this.charts.get(el);
-      if (existing) destroyChart(existing);
-
-      const chart = renderChart(chartContainer, data, config);
-      this.charts.set(el, chart);
-
-      const observer = new MutationObserver(() => {
-        if (!el.isConnected) {
-          const c = this.charts.get(el);
-          if (c) { destroyChart(c); this.charts.delete(el); }
-          observer.disconnect();
+      if (config.type === 'calendar') {
+        // Calendar heatmap — custom renderer, no Chart.js
+        const notes = await queryFilteredNotes(this.app, config);
+        if (notes.length === 0) {
+          chartContainer.createDiv({ cls: 'bases-chart-empty', text: 'No data found matching your query.' });
+          return;
         }
-      });
-      if (el.parentElement) {
-        observer.observe(el.parentElement, { childList: true });
-      }
+        renderCalendar(chartContainer, notes, config);
+      } else {
+        // Chart.js charts
+        chartContainer.style.height = `${config.height || 400}px`;
 
+        const data = await queryChartData(this.app, config);
+        if (data.labels.length === 0) {
+          chartContainer.createDiv({ cls: 'bases-chart-empty', text: 'No data found matching your query.' });
+          return;
+        }
+
+        const existing = this.charts.get(el);
+        if (existing) destroyChart(existing);
+
+        const chart = renderChart(chartContainer, data, config);
+        this.charts.set(el, chart);
+
+        const observer = new MutationObserver(() => {
+          if (!el.isConnected) {
+            const c = this.charts.get(el);
+            if (c) { destroyChart(c); this.charts.delete(el); }
+            observer.disconnect();
+          }
+        });
+        if (el.parentElement) {
+          observer.observe(el.parentElement, { childList: true });
+        }
+      }
     } catch (err) {
       chartContainer.createDiv({
         cls: 'bases-chart-error',

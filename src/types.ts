@@ -1,5 +1,15 @@
-export type ChartType = 'bar' | 'pie' | 'line';
+export type ChartType = 'bar' | 'column' | 'pie' | 'doughnut' | 'gauge' | 'line' | 'calendar';
+export type DataLabelPosition = 'none' | 'base' | 'top' | 'outside';
 export type AggregateType = 'count' | 'sum' | 'average';
+export type SortDirection = 'asc' | 'desc';
+export type SortField = 'value' | 'label';
+
+export interface MetricItem {
+  aggregate: AggregateType;
+  valueProperty?: string;
+  where?: string;
+  label: string;
+}
 
 export interface InlineQuery {
   tags?: string[];
@@ -7,27 +17,30 @@ export interface InlineQuery {
 }
 
 export interface ChartConfig {
-  // Data source — reference a .base file, or use an inline query, or both
-  source?: string;
-  view?: string;
-  query?: InlineQuery;
-
-  // Chart
+  // ── Appearance (persisted to YAML) ──
   type: ChartType;
-
-  // Data mapping
-  labelProperty: string;
-  valueProperty?: string;
-  groupBy?: string;
-  aggregate?: AggregateType;
-
-  // Appearance
+  sql?: string;
   title?: string;
   colors?: string[];
   width?: number;
   height?: number;
   showGridlines?: boolean;
   showLegend?: boolean;
+  dataLabels?: DataLabelPosition;
+
+  // ── Data fields (populated from SQL at runtime, or from legacy YAML) ──
+  source?: string;
+  view?: string;
+  query?: InlineQuery;
+  labelProperty: string;
+  valueProperty?: string;
+  groupBy?: string;
+  aggregate?: AggregateType;
+  metrics?: MetricItem[];
+  sources?: string[];
+  unionSources?: string[];
+  valueExpression?: string;
+  sort?: { field: SortField; direction: SortDirection };
 }
 
 export interface BaseViewConfig {
@@ -41,8 +54,8 @@ export interface BaseViewConfig {
 }
 
 export interface FilterGroup {
-  and?: string[];
-  or?: string[];
+  and?: unknown[];
+  or?: unknown[];
 }
 
 export interface ParsedBaseFile {
