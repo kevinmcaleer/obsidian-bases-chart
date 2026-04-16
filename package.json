@@ -1,6 +1,6 @@
 {
   "name": "bases-chart",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "Visualize Obsidian Bases data as charts",
   "main": "main.js",
   "scripts": {
