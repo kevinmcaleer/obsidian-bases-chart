@@ -1,7 +1,7 @@
 {
   "id": "bases-chart",
   "name": "Bases Chart",
-  "version": "1.1.0",
+  "version": "1.1.1",
   "minAppVersion": "1.10.0",
   "description": "Visualize Bases data as bar, column, pie, doughnut, gauge, line, and calendar charts using SQL queries.",
   "author": "Kevin",
