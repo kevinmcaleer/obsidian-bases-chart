@@ -326,13 +326,25 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, them
         anchor: 'start', align: 'start', offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',
       };
-    case 'top':
+    case 'top': {
+      // When the bar is too short to contain the label inside, flip to
+      // drawing the label just outside the bar tip (and recolour so it's
+      // readable against the page background rather than the bar fill).
+      const MIN_INSIDE_PX = 22; // ~font 11 * 2 (line height + padding)
       return {
-        display: true, color: '#fff',
+        display: true,
         font: { size: 11, weight: 'bold' },
-        anchor: 'end', align: 'start', offset: 4,
+        anchor: 'end',
+        align: (ctx: DataLabelsContext) => barValuePixels(ctx) < MIN_INSIDE_PX ? 'end' : 'start',
+        color: (ctx: DataLabelsContext) => {
+          if (barValuePixels(ctx) >= MIN_INSIDE_PX) return '#fff';
+          const parent = ctx.chart.canvas.parentElement as HTMLElement | null;
+          return parent ? readThemeColors(parent).textNormal : '#000';
+        },
+        offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',
       };
+    }
     case 'outside':
       return {
         display: true, color: theme.textNormal,
@@ -343,6 +355,20 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, them
     default:
       return { display: false };
   }
+}
+
+/**
+ * Pixel span of a bar along the value axis — used to decide whether a
+ * data label fits inside the bar. For vertical bars this is the bar's
+ * pixel height; for horizontal (column) bars, its pixel width.
+ */
+function barValuePixels(ctx: DataLabelsContext): number {
+  const meta = ctx.chart.getDatasetMeta(ctx.datasetIndex);
+  const el = meta.data[ctx.dataIndex] as unknown as { x?: number; y?: number; base?: number };
+  if (!el || el.base === undefined) return Infinity;
+  const isHorizontal = ctx.chart.options.indexAxis === 'y';
+  const tip = isHorizontal ? (el.x ?? 0) : (el.y ?? 0);
+  return Math.abs(tip - el.base);
 }
 
 export function destroyChart(chart: Chart | null): void {
