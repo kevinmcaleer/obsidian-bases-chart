@@ -5,6 +5,63 @@ import { ChartConfig, ChartDataResult, DEFAULT_COLORS, DataLabelPosition } from 
 
 Chart.register(...registerables, ChartDataLabels);
 
+/**
+ * Theme-sensitive colours resolved from the container's computed styles.
+ * Chart.js paints into a <canvas>, so CSS custom properties like
+ * `var(--text-muted)` do NOT resolve — they silently fall back to black.
+ * We must read the actual values and pass them as plain colour strings.
+ */
+export interface ThemeColors {
+  textNormal: string;
+  textMuted: string;
+  border: string;
+}
+
+export function readThemeColors(container: HTMLElement): ThemeColors {
+  const style = getComputedStyle(container);
+  const get = (name: string, fallback: string) => {
+    const v = style.getPropertyValue(name).trim();
+    return v || fallback;
+  };
+  return {
+    textNormal: get('--text-normal', '#222222'),
+    textMuted: get('--text-muted', '#888888'),
+    border: get('--background-modifier-border', '#cccccc'),
+  };
+}
+
+/**
+ * Patch a live chart's theme-sensitive colours and redraw. Called when
+ * the theme flips between light and dark.
+ */
+export function applyThemeColors(chart: Chart, theme: ThemeColors, showGridlines: boolean): void {
+  const opts = chart.options;
+  const gridColor = showGridlines ? theme.border : 'transparent';
+
+  if (opts.plugins?.legend?.labels) {
+    opts.plugins.legend.labels.color = theme.textMuted;
+  }
+
+  const scales = opts.scales as Record<string, { ticks?: { color?: string }; grid?: { color?: string } }> | undefined;
+  if (scales) {
+    for (const axis of Object.values(scales)) {
+      if (axis.ticks) axis.ticks.color = theme.textMuted;
+      if (axis.grid) axis.grid.color = gridColor;
+    }
+  }
+
+  // Data-labels "outside" position uses theme text colour
+  const dl = (opts.plugins as Record<string, { color?: string } | undefined> | undefined)?.datalabels;
+  if (dl && typeof dl.color === 'string' && dl.color !== '#fff' && dl.color !== '#ffffff') {
+    // Outside labels: update to theme-aware colour. We can't tell here
+    // whether they should be textNormal (pies) or textMuted (bars), so
+    // use textNormal for maximum readability.
+    dl.color = theme.textNormal;
+  }
+
+  chart.update('none');
+}
+
 export function renderChart(
   container: HTMLElement,
   data: ChartDataResult,
@@ -20,12 +77,13 @@ export function renderChart(
   const colors = config.colors && config.colors.length > 0
     ? config.colors
     : DEFAULT_COLORS;
+  const theme = readThemeColors(container);
 
   if (config.type === 'gauge') {
-    return buildGauge(canvas, data, colors, config);
+    return buildGauge(canvas, data, colors, config, theme);
   }
 
-  const chartConfig = buildChartConfig(config, data, colors);
+  const chartConfig = buildChartConfig(config, data, colors, theme);
   return new Chart(canvas, chartConfig);
 }
 
@@ -33,6 +91,7 @@ function buildChartConfig(
   config: ChartConfig,
   data: ChartDataResult,
   colors: string[],
+  theme: ThemeColors,
 ): ChartConfiguration {
   const type = config.type;
   const isColumn = type === 'column';
@@ -87,8 +146,8 @@ function buildChartConfig(
     };
   });
 
-  const gridColor = showGridlines ? 'var(--background-modifier-border)' : 'transparent';
-  const datalabelsConfig = buildDataLabelsConfig(dataLabels, isPieOrDoughnut);
+  const gridColor = showGridlines ? theme.border : 'transparent';
+  const datalabelsConfig = buildDataLabelsConfig(dataLabels, isPieOrDoughnut, theme);
 
   const chartjsType: ChartJsType = isColumn ? 'bar' : (type as ChartJsType);
 
@@ -109,19 +168,19 @@ function buildChartConfig(
         title: { display: false },
         legend: {
           display: showLegend,
-          labels: { color: 'var(--text-muted)' },
+          labels: { color: theme.textMuted },
         },
         tooltip: { enabled: true },
         datalabels: datalabelsConfig,
       },
       scales: isPieOrDoughnut ? {} : {
         x: {
-          ticks: { color: 'var(--text-muted)' },
+          ticks: { color: theme.textMuted },
           grid: { color: gridColor, drawTicks: showGridlines },
           beginAtZero: isColumn ? true : undefined,
         },
         y: {
-          ticks: { color: 'var(--text-muted)' },
+          ticks: { color: theme.textMuted },
           grid: { color: gridColor, drawTicks: showGridlines },
           beginAtZero: !isColumn ? true : undefined,
         },
@@ -137,6 +196,7 @@ function buildGauge(
   data: ChartDataResult,
   colors: string[],
   config: ChartConfig,
+  theme: ThemeColors,
 ): Chart {
   const dataLabels = config.dataLabels || 'none';
 
@@ -177,7 +237,7 @@ function buildGauge(
         legend: {
           display: showLegend,
           labels: {
-            color: 'var(--text-muted)',
+            color: theme.textMuted,
             filter: (item: { index?: number }) => {
               return (item.index ?? 0) < visibleData.length;
             },
@@ -188,20 +248,20 @@ function buildGauge(
             return item.dataIndex < visibleData.length;
           },
         },
-        datalabels: buildGaugeDataLabels(dataLabels, visibleData.length),
+        datalabels: buildGaugeDataLabels(dataLabels, visibleData.length, theme),
       },
     },
   });
 }
 
-function buildGaugeDataLabels(position: DataLabelPosition, visibleCount: number): Record<string, unknown> {
+function buildGaugeDataLabels(position: DataLabelPosition, visibleCount: number, theme: ThemeColors): Record<string, unknown> {
   if (position === 'none') {
     return { display: false };
   }
 
   return {
     display: (ctx: DataLabelsContext) => ctx.dataIndex < visibleCount,
-    color: position === 'outside' ? 'var(--text-normal)' : '#fff',
+    color: position === 'outside' ? theme.textNormal : '#fff',
     font: { size: 12, weight: 'bold' },
     anchor: position === 'outside' ? 'end' : 'center',
     align: position === 'outside' ? 'end' : 'center',
@@ -224,7 +284,7 @@ function buildGaugeDataLabels(position: DataLabelPosition, visibleCount: number)
 
 // ─── Data labels config ───
 
-function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean): Record<string, unknown> {
+function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, theme: ThemeColors): Record<string, unknown> {
   if (position === 'none') {
     return { display: false };
   }
@@ -233,7 +293,7 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean): Rec
     if (position === 'outside') {
       return {
         display: true,
-        color: 'var(--text-normal)',
+        color: theme.textNormal,
         font: { size: 12, weight: 'bold' },
         anchor: 'end', align: 'end', offset: 10,
         formatter: (value: number, ctx: DataLabelsContext) => {
@@ -275,7 +335,7 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean): Rec
       };
     case 'outside':
       return {
-        display: true, color: 'var(--text-muted)',
+        display: true, color: theme.textNormal,
         font: { size: 11, weight: 'bold' },
         anchor: 'end', align: 'end', offset: 4,
         formatter: (value: number) => value > 0 ? String(value) : '',

@@ -1,7 +1,7 @@
 import { Plugin, MarkdownPostProcessorContext, TFile } from 'obsidian';
 import { parseChartConfig } from './configSerializer';
 import { queryChartData, queryFilteredNotes } from './dataQuery';
-import { renderChart, destroyChart } from './chartRenderer';
+import { renderChart, destroyChart, readThemeColors, applyThemeColors } from './chartRenderer';
 import { renderCalendar } from './calendarRenderer';
 import { renderStat } from './statRenderer';
 import { renderSettingsPanel } from './settingsPanel';
@@ -9,6 +9,9 @@ import { Chart } from 'chart.js';
 
 export default class BasesChartPlugin extends Plugin {
   private charts: Map<HTMLElement, Chart> = new Map();
+  // Remember each chart's showGridlines so theme re-apply keeps them hidden.
+  private chartGridlines: WeakMap<Chart, boolean> = new WeakMap();
+  private themeObserver: MutationObserver | null = null;
 
   onload(): void {
     this.registerMarkdownCodeBlockProcessor('bases-chart', (source, el, ctx) => {
@@ -27,9 +30,25 @@ export default class BasesChartPlugin extends Plugin {
         editor.replaceSelection(template + '\n');
       },
     });
+
+    // Watch for theme switches (Obsidian toggles body.theme-dark / theme-light)
+    // and repaint chart axes, gridlines, legend, and outside labels in the
+    // new theme's colours. Without this, canvas-rendered text stays the
+    // colour it had at render time.
+    this.themeObserver = new MutationObserver(() => {
+      for (const [el, chart] of this.charts) {
+        const container = chart.canvas?.parentElement || el;
+        const theme = readThemeColors(container);
+        const showGridlines = this.chartGridlines.get(chart) ?? true;
+        applyThemeColors(chart, theme, showGridlines);
+      }
+    });
+    this.themeObserver.observe(document.body, { attributes: true, attributeFilter: ['class'] });
   }
 
   onunload(): void {
+    this.themeObserver?.disconnect();
+    this.themeObserver = null;
     for (const [, chart] of this.charts) {
       destroyChart(chart);
     }
@@ -110,6 +129,7 @@ export default class BasesChartPlugin extends Plugin {
 
         const chart = renderChart(chartContainer, data, config);
         this.charts.set(el, chart);
+        this.chartGridlines.set(chart, config.showGridlines !== false);
 
         const observer = new MutationObserver(() => {
           if (!el.isConnected) {
