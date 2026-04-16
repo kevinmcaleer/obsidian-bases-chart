@@ -193,11 +193,56 @@ function resolveProperty(note: NoteData, path: string): unknown {
 }
 
 /**
+ * Resolve a condition LHS expression.
+ * Supports bare property paths and date-bucket wrappers: `year(prop)`, `month(prop)`, `day(prop)`.
+ * Bucket wrappers return a formatted string ("YYYY", "YYYY-MM", or "YYYY-MM-DD"),
+ * matching the output of `today()` so equality comparisons work.
+ */
+function resolveExpr(note: NoteData, expr: string): unknown {
+  const fnMatch = expr.match(/^(year|month|day)\s*\(\s*(.+?)\s*\)\s*$/i);
+  if (fnMatch) {
+    const fn = fnMatch[1].toLowerCase() as 'year' | 'month' | 'day';
+    const raw = resolveProperty(note, fnMatch[2].trim());
+    const d = raw instanceof Date
+      ? raw
+      : (typeof raw === 'number' || typeof raw === 'string') ? new Date(raw) : null;
+    if (!d || isNaN(d.getTime())) return null;
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    if (fn === 'year') return String(y);
+    if (fn === 'month') return `${y}-${m}`;
+    return `${y}-${m}-${day}`;
+  }
+  return resolveProperty(note, expr);
+}
+
+/**
+ * Expand `today()` and `now()` in a WHERE condition string before pattern matching.
+ * - `today()` → `'YYYY-MM-DD'` (local date, quoted so it matches string-comparison patterns)
+ * - `now()`   → current epoch ms (unquoted so it matches numeric-comparison patterns)
+ */
+function expandDateLiterals(condition: string): string {
+  const d = new Date();
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  const today = `'${y}-${m}-${day}'`;
+  const now = String(d.getTime());
+  return condition
+    .replace(/\btoday\s*\(\s*\)/gi, today)
+    .replace(/\bnow\s*\(\s*\)/gi, now);
+}
+
+/**
  * Build a predicate from a SQL-style WHERE condition string.
- * Supports: IS EMPTY, IS NOT EMPTY, = 'val', != 'val', CONTAINS 'val', > N, < N
+ * Supports: IS EMPTY, IS NOT EMPTY, = 'val', != 'val', CONTAINS 'val',
+ *           >= N, <= N, > N, < N.
+ * LHS may be a bare property or `year(...)` / `month(...)` / `day(...)`.
+ * RHS may be `today()` or `now()` — expanded to a date string / epoch ms.
  */
 export function buildConditionPredicate(condition: string): (note: NoteData) => boolean {
-  const trimmed = condition.trim();
+  const trimmed = expandDateLiterals(condition.trim());
   if (!trimmed) return () => true;
 
   // prop IS NOT EMPTY
@@ -205,7 +250,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
   if (isNotEmptyMatch) {
     const prop = isNotEmptyMatch[1].trim();
     return (note) => {
-      const val = resolveProperty(note, prop);
+      const val = resolveExpr(note, prop);
       return val !== null && val !== undefined && val !== '' &&
         !(Array.isArray(val) && val.length === 0);
     };
@@ -216,7 +261,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
   if (isEmptyMatch) {
     const prop = isEmptyMatch[1].trim();
     return (note) => {
-      const val = resolveProperty(note, prop);
+      const val = resolveExpr(note, prop);
       return val === null || val === undefined || val === '' ||
         (Array.isArray(val) && val.length === 0);
     };
@@ -227,7 +272,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
   if (containsMatch) {
     const prop = containsMatch[1].trim();
     const search = containsMatch[2];
-    return (note) => valueContains(resolveProperty(note, prop), search);
+    return (note) => valueContains(resolveExpr(note, prop), search);
   }
 
   // prop != 'val'
@@ -236,7 +281,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const prop = neqMatch[1].trim();
     const val = neqMatch[2];
     return (note) => {
-      const v = resolveProperty(note, prop);
+      const v = resolveExpr(note, prop);
       return stringifyValue(v).toLowerCase() !== val.toLowerCase();
     };
   }
@@ -247,8 +292,30 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const prop = eqMatch[1].trim();
     const val = eqMatch[2];
     return (note) => {
-      const v = resolveProperty(note, prop);
+      const v = resolveExpr(note, prop);
       return stringifyValue(v).toLowerCase() === val.toLowerCase();
+    };
+  }
+
+  // prop >= N  (must come before >)
+  const gteMatch = trimmed.match(/^(.+?)\s*>=\s*([0-9.]+)/);
+  if (gteMatch) {
+    const prop = gteMatch[1].trim();
+    const num = parseFloat(gteMatch[2]);
+    return (note) => {
+      const v = resolveExpr(note, prop);
+      return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) >= num;
+    };
+  }
+
+  // prop <= N  (must come before <)
+  const lteMatch = trimmed.match(/^(.+?)\s*<=\s*([0-9.]+)/);
+  if (lteMatch) {
+    const prop = lteMatch[1].trim();
+    const num = parseFloat(lteMatch[2]);
+    return (note) => {
+      const v = resolveExpr(note, prop);
+      return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) <= num;
     };
   }
 
@@ -258,7 +325,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const prop = gtMatch[1].trim();
     const num = parseFloat(gtMatch[2]);
     return (note) => {
-      const v = resolveProperty(note, prop);
+      const v = resolveExpr(note, prop);
       return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) > num;
     };
   }
@@ -269,7 +336,7 @@ export function buildConditionPredicate(condition: string): (note: NoteData) => 
     const prop = ltMatch[1].trim();
     const num = parseFloat(ltMatch[2]);
     return (note) => {
-      const v = resolveProperty(note, prop);
+      const v = resolveExpr(note, prop);
       return (typeof v === 'number' ? v : parseFloat(stringifyValue(v)) || 0) < num;
     };
   }
