@@ -36,9 +36,14 @@ export function configToSql(config: ChartConfig): string {
     parts.push(`WHERE ${whereExprs.join(' AND ')}`);
   }
 
-  // GROUP BY
+  // GROUP BY (with optional date bucket: e.g. `file.ctime.month` → `month(file.ctime)`)
   if (config.groupBy) {
-    parts.push(`GROUP BY ${quoteIdent(config.groupBy)}`);
+    const bucket = matchBucketSuffix(config.groupBy);
+    if (bucket) {
+      parts.push(`GROUP BY ${bucket.fn}(${quoteIdent(bucket.base)})`);
+    } else {
+      parts.push(`GROUP BY ${quoteIdent(config.groupBy)}`);
+    }
   }
 
   // ORDER BY
@@ -84,9 +89,15 @@ export function sqlToConfig(sql: string): Partial<ChartConfig> {
     parseWhereClause(clauses.where, config);
   }
 
-  // Parse GROUP BY
+  // Parse GROUP BY (with optional date bucket: `month(file.ctime)` → `file.ctime.month`)
   if (clauses.groupBy) {
-    config.groupBy = unquoteIdent(clauses.groupBy.trim());
+    const gb = clauses.groupBy.trim();
+    const fnMatch = gb.match(/^(year|month|day)\s*\(\s*(.+?)\s*\)\s*$/i);
+    if (fnMatch) {
+      config.groupBy = `${unquoteIdent(fnMatch[2].trim())}.${fnMatch[1].toLowerCase()}`;
+    } else {
+      config.groupBy = unquoteIdent(gb);
+    }
   }
 
   // Parse ORDER BY
@@ -160,6 +171,21 @@ function buildWhereClauses(config: ChartConfig): string[] {
   }
 
   return conditions;
+}
+
+const GROUP_BY_BUCKETS: Array<{ suffix: string; fn: 'year' | 'month' | 'day' }> = [
+  { suffix: '.year', fn: 'year' },
+  { suffix: '.month', fn: 'month' },
+  { suffix: '.day', fn: 'day' },
+];
+
+function matchBucketSuffix(prop: string): { base: string; fn: 'year' | 'month' | 'day' } | null {
+  for (const { suffix, fn } of GROUP_BY_BUCKETS) {
+    if (prop.endsWith(suffix) && prop.length > suffix.length) {
+      return { base: prop.slice(0, -suffix.length), fn };
+    }
+  }
+  return null;
 }
 
 function quoteIdent(name: string): string {

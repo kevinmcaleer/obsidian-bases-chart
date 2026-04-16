@@ -231,6 +231,63 @@ function resolveNoteProperty(note: NoteData, prop: string): unknown {
   return note.frontmatter[key] ?? null;
 }
 
+// ─── Date-bucket grouping ───
+// Allows synthetic group keys like `file.ctime.month` → "YYYY-MM".
+// The SQL equivalent is `GROUP BY month(file.ctime)`.
+
+type DateBucket = 'year' | 'month' | 'day';
+const BUCKET_SUFFIXES: Array<{ suffix: string; bucket: DateBucket }> = [
+  { suffix: '.year', bucket: 'year' },
+  { suffix: '.month', bucket: 'month' },
+  { suffix: '.day', bucket: 'day' },
+];
+
+function stripBucket(prop: string): { base: string; bucket: DateBucket } | null {
+  for (const { suffix, bucket } of BUCKET_SUFFIXES) {
+    if (prop.endsWith(suffix) && prop.length > suffix.length) {
+      return { base: prop.slice(0, -suffix.length), bucket };
+    }
+  }
+  return null;
+}
+
+function coerceDate(v: unknown): Date | null {
+  if (v == null) return null;
+  if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+  if (typeof v === 'number') {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  if (typeof v === 'string') {
+    const d = new Date(v);
+    return isNaN(d.getTime()) ? null : d;
+  }
+  return null;
+}
+
+function formatBucket(d: Date, bucket: DateBucket): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  if (bucket === 'year') return String(y);
+  if (bucket === 'month') return `${y}-${m}`;
+  return `${y}-${m}-${day}`;
+}
+
+/**
+ * Resolve a group key, supporting synthetic date-bucket properties
+ * (e.g. `file.ctime.month` → "2026-04").
+ */
+function resolveGroupKey(note: NoteData, prop: string): string {
+  const split = stripBucket(prop);
+  if (split) {
+    const raw = resolveNoteProperty(note, split.base);
+    const d = coerceDate(raw);
+    return d ? formatBucket(d, split.bucket) : '(empty)';
+  }
+  return formatValue(resolveNoteProperty(note, prop));
+}
+
 function aggregateMetric(notes: NoteData[], metric: MetricItem): number {
   if (metric.aggregate === 'count') {
     return notes.length;
@@ -258,7 +315,7 @@ function groupAndAggregate(notes: NoteData[], config: ChartConfig): Map<string, 
   const groupProp = config.groupBy || 'file.name';
 
   for (const note of notes) {
-    const key = formatValue(resolveNoteProperty(note, groupProp));
+    const key = resolveGroupKey(note, groupProp);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(note);
   }
@@ -311,8 +368,7 @@ function aggregateByGroup(notes: NoteData[], config: ChartConfig, aggregate: Agg
   const groups = new Map<string, NoteData[]>();
 
   for (const note of notes) {
-    const groupVal = resolveNoteProperty(note, config.groupBy!);
-    const key = formatValue(groupVal);
+    const key = resolveGroupKey(note, config.groupBy!);
     if (!groups.has(key)) groups.set(key, []);
     groups.get(key)!.push(note);
   }

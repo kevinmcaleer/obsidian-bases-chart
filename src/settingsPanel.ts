@@ -145,7 +145,14 @@ export function renderSettingsPanel(
   });
 
   const groupRow = createRow(form, 'Group by');
-  const groupSelect = createSelect(groupRow, ['(none)', ...allProps], config.groupBy || '(none)');
+  // Date-bucket options let you group by year/month/day of a date property.
+  // They map to synthetic keys like `file.ctime.month` and serialize as `month(file.ctime)` in SQL.
+  const dateProps = ['file.ctime', 'file.mtime'];
+  const bucketOptions: string[] = [];
+  for (const p of dateProps) {
+    bucketOptions.push(`${p}.year`, `${p}.month`, `${p}.day`);
+  }
+  const groupSelect = createSelect(groupRow, ['(none)', ...allProps, ...bucketOptions], config.groupBy || '(none)');
   groupSelect.addEventListener('change', () => {
     const val = groupSelect.value;
     working.groupBy = val === '(none)' ? undefined : val;
@@ -217,6 +224,31 @@ export function renderSettingsPanel(
   dataLabelsSelect.addEventListener('change', () => {
     working.dataLabels = dataLabelsSelect.value as DataLabelPosition;
     if (working.dataLabels === 'none') delete working.dataLabels;
+    emitAppearance();
+  });
+
+  // --- Height (pixels) ---
+  const heightRow = createRow(form, 'Height (px)');
+  const heightInput = heightRow.createEl('input', {
+    type: 'number',
+    cls: 'bases-chart-input bases-chart-input-number',
+    value: config.height != null ? String(config.height) : '',
+    placeholder: '400',
+  });
+  heightInput.min = '50';
+  heightInput.step = '10';
+  heightInput.addEventListener('change', () => {
+    const raw = heightInput.value.trim();
+    if (raw === '') {
+      delete working.height;
+    } else {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) {
+        working.height = Math.round(n);
+      } else {
+        delete working.height;
+      }
+    }
     emitAppearance();
   });
 
