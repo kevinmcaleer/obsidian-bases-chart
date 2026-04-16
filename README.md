@@ -6,15 +6,16 @@ Visualize your [Obsidian Bases](https://help.obsidian.md/bases) data as charts �
 
 ## Features
 
-- **7 chart types** — bar, column (horizontal bar), pie, doughnut, gauge (half-doughnut), line, and GitHub-style calendar heatmap
+- **8 chart types** — bar, column (horizontal bar), pie, doughnut, gauge (half-doughnut), line, GitHub-style calendar heatmap, and **stat** (single-number KPI)
 - **SQL query language** — familiar syntax for querying your Bases data
 - **Visual configuration** — inline settings panel with dropdowns, toggles, draggable color palette, and live SQL preview
 - **Multi-metric queries** — count multiple conditions in a single chart (e.g. "missing tags" vs "missing dates")
 - **Multi-source** — compare data across multiple `.base` files side-by-side, or merge them with UNION
-- **Computed values** — built-in functions like `daysSince()`, `daysUntil()`, `year()`, `month()`
+- **Date bucketing** — `GROUP BY month(file.ctime)` / `year(...)` / `day(...)` for time-series charts
+- **Relative-time functions** — `today()`, `now()`, `daysSince()`, `daysUntil()`, `year()`, `month()`, `day()`
 - **Sorting** — order bars by value or label, ascending or descending
 - **Data labels** — show values at base, top, or outside of bars/slices with callout support for pie charts
-- **Appearance controls** — custom colors with drag-to-reorder, gridline toggle, legend toggle
+- **Appearance controls** — custom colors with drag-to-reorder, gridline toggle, legend toggle, font size and colour for stat charts, configurable chart height
 
 ## Quick Start
 
@@ -41,7 +42,7 @@ You can also insert a chart via the command palette: **Insert bases chart**.
 The YAML config has two parts: **appearance** (stored in YAML) and **data** (stored as SQL):
 
 ```yaml
-type: bar                    # chart type
+type: bar                    # chart type (bar | column | pie | doughnut | gauge | line | calendar | stat)
 sql: SELECT COUNT(*) FROM "Todos.base" GROUP BY status
 title: My Chart              # optional title
 showGridlines: true          # show/hide gridlines
@@ -50,7 +51,9 @@ dataLabels: outside          # none | base | top | outside
 colors:                      # custom color palette
   - "#4e79a7"
   - "#f28e2b"
-height: 400                  # chart height in pixels
+height: 400                  # chart height in pixels (default 400; 200 for stat)
+fontSize: 72                 # stat chart only — number font size in pixels (default 72)
+fontColor: "#4e79a7"         # stat chart only — hex colour; omit to inherit the theme
 ```
 
 ## SQL Reference
@@ -93,14 +96,48 @@ SELECT AVG(rating) FROM "Books.base" GROUP BY categories
 
 ### WHERE clause
 
+Top-level `WHERE` supports tag and folder filters:
+
 ```sql
 WHERE tags CONTAINS 'project'
-WHERE status != 'done'
-WHERE Priority > 3
-WHERE date IS EMPTY
-WHERE date IS NOT EMPTY
+WHERE folder = 'Work'
 WHERE tags CONTAINS 'todo' AND folder = 'Work'
 ```
+
+Per-metric `WHERE` (inside a multi-metric `SELECT`) supports a richer
+comparator set, including relative-time functions and date-bucket
+wrappers on the left-hand side:
+
+```sql
+-- Operators: =, !=, >, >=, <, <=, CONTAINS, IS EMPTY, IS NOT EMPTY
+COUNT(*) WHERE status != 'done'
+COUNT(*) WHERE Priority >= 3
+COUNT(*) WHERE date IS NOT EMPTY
+
+-- today() expands to 'YYYY-MM-DD' (local date)
+COUNT(*) WHERE day(file.ctime) = today()       -- created today
+COUNT(*) WHERE month(file.ctime) = month(today()) -- created this month (see note below)
+
+-- now() expands to current epoch milliseconds
+COUNT(*) WHERE file.mtime >= 1760000000000     -- modified since this timestamp
+```
+
+> **Note:** `month(today())` currently requires `today()` to resolve to a
+> value whose `month(...)` wrapper produces the same bucket format. The
+> cleanest pattern for "created this month" is still to group by month
+> and pick the current bucket — or use a literal `'2026-04'`.
+
+### GROUP BY
+
+```sql
+GROUP BY status               -- by a property
+GROUP BY day(file.ctime)      -- per-day bucket   → "YYYY-MM-DD"
+GROUP BY month(file.ctime)    -- per-month bucket → "YYYY-MM"
+GROUP BY year(file.ctime)     -- per-year bucket  → "YYYY"
+```
+
+Date-bucket grouping works on any date property — frontmatter dates
+(`GROUP BY month(published)`) as well as file timestamps.
 
 ### Multi-metric SELECT
 
@@ -125,13 +162,15 @@ ORDER BY label DESC    -- reverse alphabetical
 
 ### Built-in functions
 
-| Function | Description |
-|---|---|
-| `daysSince(prop)` | Days between property date and today |
-| `daysUntil(prop)` | Days from today to property date |
-| `year(prop)` | Extract year from a date |
-| `month(prop)` | Extract month (1-12) |
-| `day(prop)` | Extract day of month (1-31) |
+| Function | Where it's valid | Description |
+|---|---|---|
+| `daysSince(prop)` | `SELECT` | Days between property date and today (per note) |
+| `daysUntil(prop)` | `SELECT` | Days from today to property date (per note) |
+| `year(prop)` | `SELECT`, `GROUP BY`, `WHERE` LHS | Year bucket → `"YYYY"` |
+| `month(prop)` | `SELECT`, `GROUP BY`, `WHERE` LHS | Month bucket → `"YYYY-MM"` |
+| `day(prop)` | `SELECT`, `GROUP BY`, `WHERE` LHS | Day bucket → `"YYYY-MM-DD"` |
+| `today()` | `WHERE` RHS (per-metric) | Expands to `'YYYY-MM-DD'` (local date) |
+| `now()` | `WHERE` RHS (per-metric) | Expands to current epoch milliseconds |
 
 ## Chart Types
 
@@ -144,6 +183,7 @@ ORDER BY label DESC    -- reverse alphabetical
 | `gauge` | Half-doughnut (top hemisphere only) |
 | `line` | Line chart |
 | `calendar` | GitHub-style contribution heatmap (52 weeks) |
+| `stat` | Single large number — ideal for dashboards / KPI tiles |
 
 ## Examples
 
@@ -181,6 +221,48 @@ sql: >
 dataLabels: outside
 ```
 
+### Notes created today (stat tile)
+```yaml
+type: stat
+title: Notes created today
+sql: SELECT COUNT(*) WHERE day(file.ctime) = today() AS "Today" FROM notes
+fontSize: 96
+fontColor: "#4e79a7"
+```
+
+### Notes created each month (time series)
+```yaml
+type: bar
+title: Notes per month
+sql: SELECT COUNT(*) FROM notes GROUP BY month(file.ctime) ORDER BY label asc
+dataLabels: top
+showLegend: false
+```
+
+### KPI row — three stat tiles side-by-side
+Drop these in a 3-column layout (e.g. the Dashboards plugin) for a tidy
+summary strip:
+
+```yaml
+type: stat
+title: Total notes
+sql: SELECT COUNT(*) AS "Notes" FROM notes
+```
+
+```yaml
+type: stat
+title: Created this month
+sql: SELECT COUNT(*) WHERE month(file.ctime) = '2026-04' AS "This month" FROM notes
+fontColor: "#59a14f"
+```
+
+```yaml
+type: stat
+title: Modified in last 24h
+sql: SELECT COUNT(*) WHERE file.mtime >= 1760000000000 AS "Last 24h" FROM notes
+fontColor: "#f28e2b"
+```
+
 ## Installation
 
 ### From Obsidian
@@ -193,7 +275,7 @@ dataLabels: outside
 
 ```bash
 cd /path/to/vault/.obsidian/plugins
-git clone https://github.com/YOUR_USERNAME/bases-chart.git
+git clone https://github.com/kevinmcaleer/obsidian-bases-chart.git
 cd bases-chart
 npm install
 npm run build
@@ -203,7 +285,7 @@ Restart Obsidian and enable the plugin in Settings → Community Plugins.
 
 ### Manual
 
-1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/YOUR_USERNAME/bases-chart/releases)
+1. Download `main.js`, `manifest.json`, and `styles.css` from the [latest release](https://github.com/kevinmcaleer/obsidian-bases-chart/releases)
 2. Create a folder `bases-chart` inside `.obsidian/plugins/`
 3. Copy the three files into that folder
 4. Restart Obsidian and enable the plugin
