@@ -74,6 +74,22 @@ export default class BasesChartPlugin extends Plugin {
     const wrapper = el.createDiv({ cls: 'bases-chart-wrapper' });
     const needsSetup = !config.sql && !config.source && !config.query;
 
+    // Touch devices have no hover, so reveal the settings cog on tap.
+    // Auto-hide a few seconds later so the chart stays uncluttered.
+    // Desktop hover is handled purely in CSS.
+    if (window.matchMedia('(hover: none)').matches) {
+      let hideTimer: number | null = null;
+      wrapper.addEventListener('pointerdown', (e) => {
+        if ((e as PointerEvent).pointerType === 'mouse') return;
+        wrapper.classList.add('is-revealed');
+        if (hideTimer !== null) window.clearTimeout(hideTimer);
+        hideTimer = window.setTimeout(() => {
+          wrapper.classList.remove('is-revealed');
+          hideTimer = null;
+        }, 3000);
+      });
+    }
+
     const header = wrapper.createDiv({ cls: 'bases-chart-header' });
     renderSettingsPanel(header, config, this.app, (newYaml) => {
       void this.updateCodeBlock(ctx, el, newYaml);

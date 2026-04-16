@@ -48,19 +48,28 @@
   padding: 4px 0 2px;
 }
 
-/* Settings toggle — inline in header, not absolute */
+/* Settings toggle — inline in header, not absolute.
+   Hidden by default so charts look clean; revealed on wrapper hover
+   (desktop), tap (mobile, via .is-revealed added by JS), or whenever
+   the settings panel is open (.is-active). */
 .bases-chart-settings-toggle {
   cursor: pointer;
   padding: 4px;
   border-radius: 4px;
-  opacity: 0.4;
-  transition: opacity 0.2s, background-color 0.2s;
+  opacity: 0;
+  transition: opacity 0.15s, background-color 0.2s;
   flex-shrink: 0;
+}
+
+.bases-chart-wrapper:hover .bases-chart-settings-toggle,
+.bases-chart-wrapper.is-revealed .bases-chart-settings-toggle,
+.bases-chart-settings-toggle.is-active,
+.bases-chart-settings-toggle:focus-visible {
+  opacity: 1;
 }
 
 .bases-chart-settings-toggle:hover,
 .bases-chart-settings-toggle.is-active {
-  opacity: 1;
   background-color: var(--background-modifier-hover);
 }
 
