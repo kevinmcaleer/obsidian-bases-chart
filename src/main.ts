@@ -55,13 +55,13 @@ export default class BasesChartPlugin extends Plugin {
     const wrapper = el.createDiv({ cls: 'bases-chart-wrapper' });
     const needsSetup = !config.sql && !config.source && !config.query;
 
-    // Header row: cog + title side by side
+    // Header: cog on the left, title below
     const header = wrapper.createDiv({ cls: 'bases-chart-header' });
     renderSettingsPanel(header, config, this.app, (newYaml) => {
       this.updateCodeBlock(ctx, el, newYaml);
     }, needsSetup);
     if (config.title) {
-      header.createDiv({ cls: 'bases-chart-title', text: config.title });
+      wrapper.createDiv({ cls: 'bases-chart-title', text: config.title });
     }
 
     if (needsSetup) {
