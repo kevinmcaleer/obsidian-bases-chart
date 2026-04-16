@@ -1,0 +1,277 @@
+.bases-chart-wrapper {
+  position: relative;
+  padding: 8px 0;
+}
+
+/* Settings toggle — top-left to avoid Obsidian's <> code edit button in top-right */
+.bases-chart-settings-toggle {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  cursor: pointer;
+  padding: 4px;
+  border-radius: 4px;
+  opacity: 0.4;
+  transition: opacity 0.2s, background-color 0.2s;
+  z-index: 10;
+}
+
+.bases-chart-settings-toggle:hover,
+.bases-chart-settings-toggle.is-active {
+  opacity: 1;
+  background-color: var(--background-modifier-hover);
+}
+
+/* Settings form */
+.bases-chart-settings-form {
+  background: var(--background-secondary);
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  padding: 12px 16px;
+  margin-bottom: 12px;
+  margin-top: 32px;
+}
+
+.bases-chart-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.bases-chart-row:last-child {
+  margin-bottom: 0;
+}
+
+.bases-chart-label {
+  min-width: 120px;
+  font-size: var(--font-ui-small);
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+.bases-chart-select,
+.bases-chart-input {
+  flex: 1;
+  padding: 4px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-normal);
+  font-size: var(--font-ui-small);
+  font-family: var(--font-interface);
+}
+
+.bases-chart-select:focus,
+.bases-chart-input:focus {
+  border-color: var(--interactive-accent);
+  outline: none;
+}
+
+/* Chart type toggle buttons */
+.bases-chart-type-group {
+  display: flex;
+  gap: 4px;
+}
+
+.bases-chart-type-btn {
+  padding: 4px 12px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: var(--font-ui-small);
+  font-family: var(--font-interface);
+  text-transform: capitalize;
+  transition: all 0.15s;
+}
+
+.bases-chart-type-btn:hover {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.bases-chart-type-btn.is-active {
+  background: var(--interactive-accent);
+  color: var(--text-on-accent);
+  border-color: var(--interactive-accent);
+}
+
+/* Section header */
+.bases-chart-section-header {
+  margin-top: 12px;
+  margin-bottom: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--background-modifier-border);
+  font-size: var(--font-ui-small);
+  color: var(--text-faint);
+  font-weight: 600;
+}
+
+/* Toggle switch */
+.bases-chart-toggle-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.bases-chart-toggle {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.bases-chart-toggle-slider {
+  width: 36px;
+  height: 20px;
+  background: var(--background-modifier-border);
+  border-radius: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+  position: relative;
+}
+
+.bases-chart-toggle-slider::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  background: var(--background-primary);
+  border-radius: 50%;
+  transition: transform 0.2s;
+}
+
+.bases-chart-toggle-slider.is-active {
+  background: var(--interactive-accent);
+}
+
+.bases-chart-toggle-slider.is-active::after {
+  transform: translateX(16px);
+}
+
+/* Color chips */
+.bases-chart-colors-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.bases-chart-color-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.bases-chart-color-chip {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  cursor: pointer;
+  position: relative;
+  border: 2px solid var(--background-modifier-border);
+  transition: border-color 0.15s, transform 0.15s;
+}
+
+.bases-chart-color-chip:hover {
+  border-color: var(--text-muted);
+  transform: scale(1.1);
+}
+
+.bases-chart-color-picker-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+  border: none;
+  padding: 0;
+}
+
+.bases-chart-color-remove {
+  position: absolute;
+  top: -6px;
+  right: -6px;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--text-error);
+  color: white;
+  font-size: 10px;
+  line-height: 14px;
+  text-align: center;
+  cursor: pointer;
+  display: none;
+}
+
+.bases-chart-color-chip:hover .bases-chart-color-remove {
+  display: block;
+}
+
+.bases-chart-color-add {
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  border: 2px dashed var(--background-modifier-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-faint);
+  font-size: 16px;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.bases-chart-color-add:hover {
+  border-color: var(--interactive-accent);
+  color: var(--interactive-accent);
+}
+
+.bases-chart-color-reset {
+  align-self: flex-start;
+  padding: 2px 8px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 4px;
+  background: var(--background-primary);
+  color: var(--text-faint);
+  font-size: var(--font-ui-smaller);
+  cursor: pointer;
+  transition: color 0.15s;
+}
+
+.bases-chart-color-reset:hover {
+  color: var(--text-normal);
+}
+
+/* Chart container */
+.bases-chart-container {
+  position: relative;
+  width: 100%;
+}
+
+.bases-chart-container canvas {
+  max-width: 100%;
+}
+
+/* Error and empty states */
+.bases-chart-error {
+  padding: 16px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  border-left: 3px solid var(--text-error);
+  border-radius: 4px;
+  font-size: var(--font-ui-small);
+}
+
+.bases-chart-empty {
+  padding: 24px;
+  text-align: center;
+  color: var(--text-faint);
+  font-size: var(--font-ui-small);
+}

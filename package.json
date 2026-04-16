@@ -1,0 +1,19 @@
+{
+  "name": "obsidian-bases-chart",
+  "version": "0.1.0",
+  "description": "Visualize Obsidian Bases data as charts",
+  "main": "main.js",
+  "scripts": {
+    "dev": "node esbuild.config.mjs",
+    "build": "node esbuild.config.mjs production"
+  },
+  "devDependencies": {
+    "@types/node": "^20.0.0",
+    "esbuild": "^0.21.0",
+    "obsidian": "latest",
+    "typescript": "^5.4.0"
+  },
+  "dependencies": {
+    "chart.js": "^4.4.0"
+  }
+}
