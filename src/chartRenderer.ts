@@ -338,7 +338,7 @@ function buildDataLabelsConfig(position: DataLabelPosition, isPie: boolean, them
         align: (ctx: DataLabelsContext) => barValuePixels(ctx) < MIN_INSIDE_PX ? 'end' : 'start',
         color: (ctx: DataLabelsContext) => {
           if (barValuePixels(ctx) >= MIN_INSIDE_PX) return '#fff';
-          const parent = ctx.chart.canvas.parentElement as HTMLElement | null;
+          const parent = ctx.chart.canvas.parentElement;
           return parent ? readThemeColors(parent).textNormal : '#000';
         },
         offset: 4,

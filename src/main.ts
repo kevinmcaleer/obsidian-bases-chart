@@ -80,7 +80,7 @@ export default class BasesChartPlugin extends Plugin {
     if (window.matchMedia('(hover: none)').matches) {
       let hideTimer: number | null = null;
       wrapper.addEventListener('pointerdown', (e) => {
-        if ((e as PointerEvent).pointerType === 'mouse') return;
+        if (e.pointerType === 'mouse') return;
         wrapper.classList.add('is-revealed');
         if (hideTimer !== null) window.clearTimeout(hideTimer);
         hideTimer = window.setTimeout(() => {

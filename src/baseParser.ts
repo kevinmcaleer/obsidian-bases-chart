@@ -355,5 +355,5 @@ function valueContains(value: unknown, search: string): boolean {
       typeof v === 'string' && v.toLowerCase().includes(search.toLowerCase())
     );
   }
-  return String(value).toLowerCase().includes(search.toLowerCase());
+  return stringifyValue(value).toLowerCase().includes(search.toLowerCase());
 }
